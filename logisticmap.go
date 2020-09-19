@@ -1,16 +1,20 @@
 package main
 
 import (
-	"github.com/fogleman/gg"
-	"image/png"
+	"image"
+	"image/color"
+	"image/gif"
 	"io"
 	"log"
 	"net/http"
-	"strconv"
 )
 
-const R = 4
-const Size = 1000
+var palette = []color.Color{color.White, color.Black}
+
+const (
+	whiteIndex = 0 // first color in palette
+	blackIndex = 1 // next color in palette
+)
 
 func main() {
 	http.HandleFunc("/lm", handler)
@@ -18,8 +22,7 @@ func main() {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	iterations := getQueryParameter(r, "iterations", 100)
-	plot(w, iterations)
+	plot(w)
 }
 
 
@@ -28,37 +31,26 @@ func logisticMap(r, y float64) float64 {
 }
 
 
-func plot(out io.Writer, iterations int) {
-	dc := gg.NewContext(Size, Size)
-	dc.DrawRectangle(0, 0, Size, Size)
-	dc.SetRGB(1, 1, 1)
-	dc.Fill()
-	for x := 0; x < Size; x++ {
-		r := 4 * float64(x) / float64(Size)
-		y := 0.1
-		for i := 0; i < iterations; i++ {
+func plot(out io.Writer) {
+	const (
+		size = 1000
+		rmin = 2.4
+		rmax = 4
+	)
+
+	rect := image.Rect(0, 0, 1.5 * size, size)
+	img := image.NewPaletted(rect, palette)
+	for x := 0; x < 1.5 * size * 10; x++ {
+		r := rmin + (rmax - rmin) * float64(x) / float64(1.5 *size * 10)
+		y := 0.5
+		for i := 0; i < 1000; i++ {
 			y = logisticMap(r, y)
 		}
-		dc.DrawCircle(float64((x)), y * Size, float64(1))
-		dc.SetRGB(0, 0, 0)
-		dc.Fill()
-	}
-	img := dc.Image()
-	png.Encode(out, img)
-}
-
-
-func getQueryParameter( r *http.Request, name string, defaultValue int) int {
-	q, ok := r.URL.Query()[name]
-	if ok && len(q) > 0 {
-		s := q[0]
-		i, err := strconv.Atoi(s)
-		if err != nil {
-			return defaultValue
-		} else {
-			return i
+		for i := 1000; i < 1000 + 100; i++ {
+			y = logisticMap(r, y)
+			img.SetColorIndex(int(x / 10), size - int(y * size), blackIndex)
 		}
-	} else {
-		return defaultValue
 	}
+
+	gif.Encode(out, img, nil)
 }
